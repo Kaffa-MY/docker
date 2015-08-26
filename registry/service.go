@@ -134,14 +134,15 @@ func (s *Service) LookupPushEndpoints(repoName string) (endpoints []APIEndpoint,
 func (s *Service) lookupEndpoints(repoName string) (endpoints []APIEndpoint, err error) {
 	var cfg = tlsconfig.ServerDefault
 	tlsConfig := &cfg
-	if strings.HasPrefix(repoName, DefaultNamespace+"/") {
-		// v2 mirrors
-		for _, mirror := range s.Config.Mirrors {
-			mirrorTLSConfig, err := s.tlsConfigForMirror(mirror)
-			if err != nil {
-				return nil, err
-			}
-			endpoints = append(endpoints, APIEndpoint{
+	//	if strings.HasPrefix(repoName, DefaultNamespace+"/") {
+	// v2 mirrors'
+	// log current Repository name is repoName
+	for _, mirror := range s.Config.Mirrors {
+		mirrorTLSConfig, err := s.tlsConfigForMirror(mirror)
+		if err != nil {
+			return nil, err
+		}
+		endpoints = append(endpoints, APIEndpoint{
 				URL: mirror,
 				// guess mirrors are v2
 				Version:      APIVersion2,
@@ -149,27 +150,27 @@ func (s *Service) lookupEndpoints(repoName string) (endpoints []APIEndpoint, err
 				TrimHostname: true,
 				TLSConfig:    mirrorTLSConfig,
 			})
-		}
-		// v2 registry
-		endpoints = append(endpoints, APIEndpoint{
+	}
+	// v2 registry
+	endpoints = append(endpoints, APIEndpoint{
 			URL:          DefaultV2Registry,
 			Version:      APIVersion2,
 			Official:     true,
 			TrimHostname: true,
 			TLSConfig:    tlsConfig,
 		})
-		if runtime.GOOS == "linux" { // do not inherit legacy API for OSes supported in the future
-			// v1 registry
-			endpoints = append(endpoints, APIEndpoint{
+	if runtime.GOOS == "linux" { // do not inherit legacy API for OSes supported in the future
+		// v1 registry
+		endpoints = append(endpoints, APIEndpoint{
 				URL:          DefaultV1Registry,
 				Version:      APIVersion1,
 				Official:     true,
 				TrimHostname: true,
 				TLSConfig:    tlsConfig,
 			})
-		}
-		return endpoints, nil
 	}
+	//		return endpoints, nil
+	//	}
 
 	slashIndex := strings.IndexRune(repoName, '/')
 	if slashIndex <= 0 {
@@ -191,7 +192,7 @@ func (s *Service) lookupEndpoints(repoName string) (endpoints []APIEndpoint, err
 	}
 	endpoints = []APIEndpoint{
 		{
-			URL:           "https://" + hostname,
+			URL:           "https://"+hostname,
 			Version:       APIVersion2,
 			TrimHostname:  true,
 			TLSConfig:     tlsConfig,
@@ -199,7 +200,7 @@ func (s *Service) lookupEndpoints(repoName string) (endpoints []APIEndpoint, err
 			Versions:      v2Versions,
 		},
 		{
-			URL:          "https://" + hostname,
+			URL:          "https://"+hostname,
 			Version:      APIVersion1,
 			TrimHostname: true,
 			TLSConfig:    tlsConfig,
@@ -208,20 +209,20 @@ func (s *Service) lookupEndpoints(repoName string) (endpoints []APIEndpoint, err
 
 	if !isSecure {
 		endpoints = append(endpoints, APIEndpoint{
-			URL:          "http://" + hostname,
-			Version:      APIVersion2,
-			TrimHostname: true,
-			// used to check if supposed to be secure via InsecureSkipVerify
-			TLSConfig:     tlsConfig,
-			VersionHeader: DefaultRegistryVersionHeader,
-			Versions:      v2Versions,
-		}, APIEndpoint{
-			URL:          "http://" + hostname,
-			Version:      APIVersion1,
-			TrimHostname: true,
-			// used to check if supposed to be secure via InsecureSkipVerify
-			TLSConfig: tlsConfig,
-		})
+				URL:          "http://"+hostname,
+				Version:      APIVersion2,
+				TrimHostname: true,
+				// used to check if supposed to be secure via InsecureSkipVerify
+				TLSConfig:     tlsConfig,
+				VersionHeader: DefaultRegistryVersionHeader,
+				Versions:      v2Versions,
+			}, APIEndpoint{
+				URL:          "http://"+hostname,
+				Version:      APIVersion1,
+				TrimHostname: true,
+				// used to check if supposed to be secure via InsecureSkipVerify
+				TLSConfig: tlsConfig,
+			})
 	}
 
 	return endpoints, nil
