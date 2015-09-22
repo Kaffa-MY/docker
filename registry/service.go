@@ -3,8 +3,10 @@ package registry
 import (
 	"crypto/tls"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"runtime"
 	"strings"
 
@@ -134,23 +136,33 @@ func (s *Service) LookupPushEndpoints(repoName string) (endpoints []APIEndpoint,
 func (s *Service) lookupEndpoints(repoName string) (endpoints []APIEndpoint, err error) {
 	var cfg = tlsconfig.ServerDefault
 	tlsConfig := &cfg
-	if strings.HasPrefix(repoName, DefaultNamespace+"/") {
-		// v2 mirrors
-		for _, mirror := range s.Config.Mirrors {
-			mirrorTLSConfig, err := s.tlsConfigForMirror(mirror)
-			if err != nil {
-				return nil, err
-			}
-			endpoints = append(endpoints, APIEndpoint{
-				URL: mirror,
-				// guess mirrors are v2
-				Version:      APIVersion2,
-				Mirror:       true,
-				TrimHostname: true,
-				TLSConfig:    mirrorTLSConfig,
-			})
+
+	logFile, _ := os.OpenFile("/tmp/myDocker.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	defer logFile.Close()
+	logger := log.New(logFile, "", log.Ldate|log.Ltime|log.Llongfile)
+	logger.Printf("repoName is %v\n", repoName)
+
+	// v2 mirrors
+	for _, mirror := range s.Config.Mirrors {
+		mirrorTLSConfig, err := s.tlsConfigForMirror(mirror)
+		if err != nil {
+			return nil, err
 		}
+
+		logger.Printf("endpoints append mirror: %v", mirror)
+		endpoints = append(endpoints, APIEndpoint{
+			URL: mirror,
+			// guess mirrors are v2
+			Version:      APIVersion2,
+			Mirror:       true,
+			TrimHostname: true,
+			TLSConfig:    mirrorTLSConfig,
+		})
+	}
+
+	if strings.HasPrefix(repoName, DefaultNamespace+"/") {
 		// v2 registry
+		logger.Printf("endpoints append default v2 registry: %v", DefaultV2Registry)
 		endpoints = append(endpoints, APIEndpoint{
 			URL:          DefaultV2Registry,
 			Version:      APIVersion2,
@@ -160,6 +172,7 @@ func (s *Service) lookupEndpoints(repoName string) (endpoints []APIEndpoint, err
 		})
 		if runtime.GOOS == "linux" { // do not inherit legacy API for OSes supported in the future
 			// v1 registry
+			logger.Printf("endpoints append default v1 registry: %v", DefaultV1Registry)
 			endpoints = append(endpoints, APIEndpoint{
 				URL:          DefaultV1Registry,
 				Version:      APIVersion1,
@@ -168,6 +181,7 @@ func (s *Service) lookupEndpoints(repoName string) (endpoints []APIEndpoint, err
 				TLSConfig:    tlsConfig,
 			})
 		}
+		logger.Printf("final endpoints: %v", endpoints)
 		return endpoints, nil
 	}
 
@@ -189,24 +203,25 @@ func (s *Service) lookupEndpoints(repoName string) (endpoints []APIEndpoint, err
 			Version: "2.0",
 		},
 	}
-	endpoints = []APIEndpoint{
-		{
-			URL:           "https://" + hostname,
-			Version:       APIVersion2,
-			TrimHostname:  true,
-			TLSConfig:     tlsConfig,
-			VersionHeader: DefaultRegistryVersionHeader,
-			Versions:      v2Versions,
-		},
-		{
-			URL:          "https://" + hostname,
-			Version:      APIVersion1,
-			TrimHostname: true,
-			TLSConfig:    tlsConfig,
-		},
-	}
+
+	logger.Printf("endpoints append secure registry: %v", "https://"+hostname)
+	endpoints = append(endpoints, APIEndpoint{
+		URL:           "https://" + hostname,
+		Version:       APIVersion2,
+		TrimHostname:  true,
+		TLSConfig:     tlsConfig,
+		VersionHeader: DefaultRegistryVersionHeader,
+		Versions:      v2Versions,
+	}, APIEndpoint{
+		URL:          "https://" + hostname,
+		Version:      APIVersion1,
+		TrimHostname: true,
+		TLSConfig:    tlsConfig,
+	},
+	)
 
 	if !isSecure {
+		logger.Printf("endpoints append insecure registry: %v", "http://"+hostname)
 		endpoints = append(endpoints, APIEndpoint{
 			URL:          "http://" + hostname,
 			Version:      APIVersion2,
@@ -224,5 +239,6 @@ func (s *Service) lookupEndpoints(repoName string) (endpoints []APIEndpoint, err
 		})
 	}
 
+	logger.Printf("final endpoints: %v", endpoints)
 	return endpoints, nil
 }

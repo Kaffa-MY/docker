@@ -35,3 +35,6 @@ man/man1
 man/man5
 pyenv
 vendor/pkg/
+
+#modify by kaffa
+deploy.sh
